@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,8 +10,6 @@
 
 #include "tftp.h"
 
-// #define BUFFER_SIZE (32 << 20)
-
 int client_fd;
 
 int graceful_stop(int signal) {
@@ -18,7 +17,55 @@ int graceful_stop(int signal) {
   exit(EXIT_SUCCESS);
 }
 
-int cmd_mkdir() {}
+int mkdir(int argc, char **argv);
+int put(int argc, char **argv);
+int get(int argc, char **argv);
+int pwd(int argc, char **argv);
+int cwd(int argc, char **argv);
+int delete(int argc, char **argv);
+
+static int set_args(char *args, char **argv) {
+  int count = 0;
+
+  while (isspace(*args))
+    ++args;
+  while (*args) {
+    if (argv)
+      argv[count] = args;
+    while (*args && !isspace(*args))
+      ++args;
+    if (argv && *args)
+      *args++ = '\0';
+    while (isspace(*args))
+      ++args;
+    count++;
+  }
+  return count;
+}
+
+char **parsed_args(char *args, int *argc) {
+  char **argv = NULL;
+  int argn = 0;
+
+  if (args && *args && (args = strdup(args)) && (argn = set_args(args, NULL)) &&
+      (argv = malloc((argn + 1) * sizeof(char *)))) {
+    *argv++ = args;
+    argn = set_args(args, argv);
+  }
+
+  if (args && !argv)
+    free(args);
+
+  *argc = argn;
+  return argv;
+}
+
+void free_parsed_args(char **argv) {
+  if (argv) {
+    free(argv[-1]);
+    free(argv - 1);
+  }
+}
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
@@ -57,10 +104,28 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
+  char **l_argv;
+  int l_argc;
+
   while (1) {
     printf("tftp > ");
     char *input = malloc(128);
     fgets(input, 128, stdin);
+
+    l_argv = parsed_args(input, &argc);
+
+    if (strcmp(l_argv[0], "mkdir") == 0) {
+
+    } else if (strcmp(l_argv[0], "get") == 0) {
+
+    } else if (strcmp(l_argv[0], "put") == 0) {
+
+    } else if (strcmp(l_argv[0], "cwd") == 0) {
+
+    } else if (strcmp(l_argv[0], "pwd") == 0) {
+
+    } else if (strcmp(l_argv[0], "delete") == 0) {
+    }
 
     printf("input(%lu): %s\n", strlen(input), input);
     send(client_fd, input, strlen(input), 0);
@@ -68,3 +133,13 @@ int main(int argc, char *argv[]) {
 
   graceful_stop(EXIT_FAILURE);
 }
+
+int mkdir(int argc, char **argv) { return EXIT_SUCCESS; }
+int put(int argc, char **argv) { return EXIT_SUCCESS; }
+int get(int argc, char **argv) { return EXIT_SUCCESS; }
+
+int pwd(int argc, char **argv) { return EXIT_SUCCESS; }
+
+int cwd(int argc, char **argv) { return EXIT_SUCCESS; }
+
+int delete(int argc, char **argv) { return EXIT_SUCCESS; }
