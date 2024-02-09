@@ -3,7 +3,7 @@ run:
 	./server.o 8080 .
 
 server:
-	gcc -o server.o server.c
+	gcc -o server.o -I . server.c
 
 client:
-	gcc -o client.o client.c
+	gcc -o client.o -I . client.c
