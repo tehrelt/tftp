@@ -1,6 +1,5 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
-// usage client.exe ip port
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +7,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define BUFFER_SIZE (32 << 20)
+#include "tftp.h"
+
+// #define BUFFER_SIZE (32 << 20)
 
 int client_fd;
 
@@ -16,6 +17,8 @@ int graceful_stop(int signal) {
   close(client_fd);
   exit(EXIT_SUCCESS);
 }
+
+int cmd_mkdir() {}
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
@@ -28,7 +31,7 @@ int main(int argc, char *argv[]) {
   char *addr = argv[1];
   uint16_t port = atoi(argv[2]);
   int status;
-  char *buffer = malloc(BUFFER_SIZE);
+  // char *buffer = malloc(BUFFER_SIZE);
 
   printf("config: %s:%d\n", addr, port);
 
@@ -54,11 +57,14 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  char *input = malloc(BUFFER_SIZE);
-  printf("ENTER MESSAGE: ");
-  fgets(input, BUFFER_SIZE, stdin);
-  printf("len of input: %lu\n", strlen(input));
-  send(client_fd, buffer, strlen(input), 0);
+  while (1) {
+    printf("tftp > ");
+    char *input = malloc(128);
+    fgets(input, 128, stdin);
+
+    printf("input(%lu): %s\n", strlen(input), input);
+    send(client_fd, input, strlen(input), 0);
+  }
 
   graceful_stop(EXIT_FAILURE);
 }
