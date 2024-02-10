@@ -260,18 +260,13 @@ int get(int argc, char **argv) {
          addrlen);
   printf("RRQ: %d %s %s\n", rrq.op_code, rrq.file_name, rrq.mode);
 
-  int fd = creat(file_name, 0770);
-  if (fd == -1) {
-    printf("create file failed\n");
-    return fd;
-  }
-
+  int fd;
   int read_bytes = 0;
   do {
     // read_bytes = recvfrom(sockfd, recieved, BLOCK_SIZE + 4, 0,
     // (struct sockaddr *)&saddr_other, &addrlen);
 
-    memset(recieved, 0, BLOCK_SIZE + 4);
+    /*     memset(recieved, 0, BLOCK_SIZE + 4); */
     read_bytes = recvfrom(sockfd, recieved, BLOCK_SIZE + 4, 0,
                           (struct sockaddr *)&saddr_other, &addrlen);
 
@@ -299,6 +294,14 @@ int get(int argc, char **argv) {
     data_packet.data = recieved + 4;
     printf("get: recieved %d bytes from DATA#%d\n", read_bytes,
            data_packet.block_n);
+
+    if (data_packet.block_n == 0) {
+      fd = creat(file_name, 0770);
+      if (fd == -1) {
+        printf("create file failed\n");
+        return fd;
+      }
+    }
 
     write(fd, data_packet.data, read_bytes);
 

@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
   char *recieved = malloc(BLOCK_SIZE);
   while (1) {
 
-    printf("Waiting for packets...\n");
+    printf("\n\nWaiting for packets...\n");
     fflush(stdout);
 
     // if (fork() == 0) {
@@ -221,9 +221,6 @@ int cmd_get(char *buffer, int length, struct sockaddr_in saddr_other,
            err_packet.msg);
 
     uint8_t *err_buf = malloc(BLOCK_SIZE);
-    // memset(err_buf, 0, 4 + len + 1);
-    //
-    // printf("erro r")
     memcpy(err_buf, &err_packet.op_code, 2);
     memcpy(err_buf + 2, &err_packet.err, 2);
     memcpy(err_buf + 4, err_packet.msg, len + 1);

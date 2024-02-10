@@ -1,6 +1,13 @@
-run:
+build:
+	# make dir
+	# rm bin/*.o
 	make server
-	./server.o 8080 
+	mv server.o bin/server.o
+	make client
+	mv client.o bin/client.o
+
+dir:
+	mkdir bin
 
 server:
 	gcc -o server.o -I . server.c
@@ -8,9 +15,3 @@ server:
 client:
 	gcc -o client.o -I . client.c
 
-build: 
-	rm bin/*.o
-	make server
-	mv server.o bin/server.o
-	make client
-	mv client.o bin/client.o
