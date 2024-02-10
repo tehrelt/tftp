@@ -136,14 +136,11 @@ int put(int argc, char **argv) {
     printf("Error! File cannot be opened.\n");
     return EXIT_FAILURE;
   }
-
   off_t fsize = lseek(fd, 0, SEEK_END);
   lseek(fd, 0, SEEK_SET);
 
-  tftp_data_t data;
+  // tftp_data_t data;
   tftp_wrrq_t req;
-
-  char *buffer = malloc(BLOCK_SIZE);
 
   // op_code
   req.op_code = TFTP_WRQ;
@@ -152,10 +149,15 @@ int put(int argc, char **argv) {
   int file_name_length = strlen(argv[1]);
   req.file_name = malloc(file_name_length);
   strcpy(req.file_name, argv[1]);
+  printf("put: WRQ.file_name = %s\n", req.file_name);
+  fflush(stdout);
 
   // mode
   int mode_length = strlen("octet");
+  req.mode = malloc(16);
   strcpy(req.mode, "octet");
+  printf("put: WRQ.mode = %s\n", req.mode);
+  fflush(stdout);
 
   // allocating RRQ
   char *packet = malloc(BLOCK_SIZE);
@@ -173,14 +175,15 @@ int put(int argc, char **argv) {
   p += mode_length;
   *p = 0;
 
+  printf("put: WRQ %d %s %s\n", req.op_code, req.file_name, req.mode);
+
   sendto(sockfd, packet, BLOCK_SIZE, 0, (struct sockaddr *)&saddr_other,
          addrlen);
 
   tftp_ack_t ack_packet;
-  tftp_data_t data_packet;
   char recieved[BLOCK_SIZE];
   for (int written = 0; written < fsize; written += BLOCK_SIZE) {
-
+    fflush(stdout);
     int recieved_bytes = recvfrom(sockfd, &recieved, BLOCK_SIZE, 0,
                                   (struct sockaddr *)&saddr_other, &addrlen);
 
@@ -193,7 +196,8 @@ int put(int argc, char **argv) {
       tftp_err_t err_packet;
       memcpy(&err_packet, recieved, sizeof(tftp_err_t));
       err_packet.msg = recieved + 4;
-      printf("Error packet recieved: [%d] %s", err_packet.err, err_packet.msg);
+      printf("Error packet recieved: [%d] %s\n", err_packet.err,
+             err_packet.msg);
       graceful_stop(err_packet.err);
     }
 
@@ -201,26 +205,31 @@ int put(int argc, char **argv) {
     memcpy(&ack_packet, recieved, sizeof(tftp_ack_t));
 
     printf("put: Recieved ACK#%d\n", ack_packet.block_n);
+
     printf("put: position of file - %d\n",
-           lseek(fd, (ack_packet.block_n - 1) * BLOCK_SIZE, SEEK_SET));
+           lseek(fd, (ack_packet.block_n) * BLOCK_SIZE, SEEK_SET));
+    // buffer.malloc(BLOCK_SIZE);
+    //
+    char *buffer = malloc(BLOCK_SIZE);
     int to_write = read(fd, buffer, BLOCK_SIZE);
     if (to_write == -1) {
       printf("failed to read\n");
     }
 
     // preparing data packet
+    tftp_data_t data_packet;
     data_packet.op_code = TFTP_DATA;
-    // int to_write = fsize - written > BLOCK_SIZE ? BLOCK_SIZE : fsize -
-    // written;
-    memcpy(data_packet.data, buffer + (ack_packet.block_n * BLOCK_SIZE),
-           to_write);
+    data_packet.data = malloc(to_write);
+    memcpy(data_packet.data, buffer, to_write);
     data_packet.block_n = ack_packet.block_n + 1;
 
-    sendto(sockfd, (char *)&data_packet, sizeof(tftp_data_t), 0,
+    sendto(sockfd, (char *)&data_packet, 516, 0,
            (struct sockaddr *)&saddr_other, addrlen);
     printf("put: sent %d bytes "
-           "DATA#%d\n-------------------\n%s\n--------------------\n\n",
-           to_write, data_packet.block_n, data_packet.data);
+           "DATA#%d\n",
+           to_write, data_packet.block_n);
+
+    free(data_packet.data);
   }
 
   int recieved_bytes = recvfrom(sockfd, &recieved, BLOCK_SIZE, 0,

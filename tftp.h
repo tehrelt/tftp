@@ -11,13 +11,13 @@
 #define TFTP_ERR 5
 
 #define TFTP_SUCCESS 0
-#define TFTP_ERR_UNEXPECTED 1         // 0         Not defined, see error message (if any).
-#define TFTP_ERR_FILE_NOT_FOUND 2     // 1         File not found.
-#define TFTP_ERR_ACCESS_VIOLATION 3   // 2         Access violation.
-#define TFTP_ERR_DISK_FULL 4          // 3         Disk full or allocation exceeded.
-#define TFTP_ERR_ILLEGAL 5            // 4         Illegal TFTP operation.
-#define TFTP_ERR_UNKNOWN_ID 6         // 5         Unknown transfer ID.
-#define TFTP_ERR_FILE_EXISTS 7        // 6         File already exists.
+#define TFTP_ERR_UNEXPECTED 1       // Not defined, see error message (if any).
+#define TFTP_ERR_FILE_NOT_FOUND 2   // File not found.
+#define TFTP_ERR_ACCESS_VIOLATION 3 // Access violation.
+#define TFTP_ERR_DISK_FULL 4        // Disk full or allocation exceeded.
+#define TFTP_ERR_ILLEGAL 5          // Illegal TFTP operation.
+#define TFTP_ERR_UNKNOWN_ID 6       // Unknown transfer ID.
+#define TFTP_ERR_FILE_EXISTS 7      // File already exists.
 
 typedef struct tftp_wrrq {
   uint16_t op_code;
@@ -28,7 +28,7 @@ typedef struct tftp_wrrq {
 typedef struct tftp_data {
   uint16_t op_code;
   uint16_t block_n;
-  char data[BLOCK_SIZE];
+  uint8_t *data;
 } tftp_data_t;
 
 typedef struct tftp_ack {
@@ -39,7 +39,5 @@ typedef struct tftp_ack {
 typedef struct tftp_err {
   uint16_t op_code;
   uint16_t err;
-  char* msg;
+  char *msg;
 } tftp_err_t;
-
-
