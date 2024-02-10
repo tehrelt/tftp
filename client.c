@@ -192,7 +192,6 @@ int put(int argc, char **argv) {
 
     // catching error
     if (op_code != TFTP_ACK) {
-      printf("ERROR RECIEVED NOT A ACK PACKET\n");
       tftp_err_t err_packet;
       memcpy(&err_packet, recieved, sizeof(tftp_err_t));
       err_packet.msg = recieved + 4;
@@ -210,6 +209,17 @@ int put(int argc, char **argv) {
            lseek(fd, (ack_packet.block_n) * BLOCK_SIZE, SEEK_SET));
 
     uint8_t *buffer = malloc(BLOCK_SIZE);
+
+    // op_code = 0;
+    // memcpy(&op_code, buffer, 2);
+
+    // if (op_code != TFTP_DATA) {
+    //   tftp_err_t err;
+    //   memcpy(&err, buffer, sizeof(tftp_err_t));
+    //   err.msg = buffer + 4;
+    //   printf("Recieved error packet: [%d] %s", err.err, err.msg);
+    //   return err.err;
+    // }
 
     int to_write = read(fd, buffer, BLOCK_SIZE);
     if (to_write == -1) {

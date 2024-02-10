@@ -144,8 +144,18 @@ int cmd_put(char *buffer, int length, struct sockaddr_in saddr_other,
     err_packet.op_code = TFTP_ERR;
     err_packet.err = TFTP_ERR_FILE_EXISTS;
     err_packet.msg = malloc(128);
-    sprintf(err_packet.msg, "File '%s' already exists\n", wrq.file_name);
+    int len =
+        sprintf(err_packet.msg, "File '%s' already exists\n", wrq.file_name);
     printf("%s", err_packet.msg);
+
+    uint8_t *err_buf = malloc(len + 1);
+    memset(err_buf, 0, len + 1);
+    memcpy(err_buf, &err_packet, 4);
+    memcpy(err_buf + 4, err_packet.msg, len + 1);
+    sendto(sockfd, err_buf, BLOCK_SIZE, 0, (struct sockaddr *)&saddr_other,
+           addrlen);
+
+    free(err_buf);
     return fd;
   }
 
