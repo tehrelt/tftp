@@ -149,15 +149,15 @@ int put(int argc, char **argv) {
   int file_name_length = strlen(argv[1]);
   req.file_name = malloc(file_name_length);
   strcpy(req.file_name, argv[1]);
-  printf("put: WRQ.file_name = %s\n", req.file_name);
-  fflush(stdout);
+  // printf("put: WRQ.file_name = %s\n", req.file_name);
+  // fflush(stdout);
 
   // mode
   int mode_length = strlen("octet");
   req.mode = malloc(16);
   strcpy(req.mode, "octet");
-  printf("put: WRQ.mode = %s\n", req.mode);
-  fflush(stdout);
+  // printf("put: WRQ.mode = %s\n", req.mode);
+  // fflush(stdout);
 
   // allocating RRQ
   char *packet = malloc(BLOCK_SIZE);
@@ -206,11 +206,11 @@ int put(int argc, char **argv) {
 
     printf("put: Recieved ACK#%d\n", ack_packet.block_n);
 
-    printf("put: position of file - %d\n",
+    printf("put: position of file - %ld\n",
            lseek(fd, (ack_packet.block_n) * BLOCK_SIZE, SEEK_SET));
-    // buffer.malloc(BLOCK_SIZE);
-    //
-    char *buffer = malloc(BLOCK_SIZE);
+
+    uint8_t *buffer = malloc(BLOCK_SIZE);
+
     int to_write = read(fd, buffer, BLOCK_SIZE);
     if (to_write == -1) {
       printf("failed to read\n");
@@ -219,17 +219,20 @@ int put(int argc, char **argv) {
     // preparing data packet
     tftp_data_t data_packet;
     data_packet.op_code = TFTP_DATA;
-    data_packet.data = malloc(to_write);
-    memcpy(data_packet.data, buffer, to_write);
+    data_packet.data = buffer;
     data_packet.block_n = ack_packet.block_n + 1;
 
-    sendto(sockfd, (char *)&data_packet, 516, 0,
+    uint8_t *packet = malloc(4 + to_write);
+    memcpy(packet, &data_packet, 4);
+    memcpy(packet + 4, data_packet.data, to_write);
+
+    sendto(sockfd, (char *)packet, 4 + to_write, 0,
            (struct sockaddr *)&saddr_other, addrlen);
     printf("put: sent %d bytes "
-           "DATA#%d\n",
-           to_write, data_packet.block_n);
+           "DATA#%d\n--------\n%s\n---------\n\n",
+           4 + to_write, data_packet.block_n, data_packet.data);
 
-    free(data_packet.data);
+    free(buffer);
   }
 
   int recieved_bytes = recvfrom(sockfd, &recieved, BLOCK_SIZE, 0,

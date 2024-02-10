@@ -94,11 +94,6 @@ int main(int argc, char *argv[]) {
       graceful_stop(0);
     }
 
-    // char buffer_ip[16];
-    // inet_ntop(AF_INET, &address, buffer_ip, addrlen);
-
-    // int bytes_read = read(current_sockfd, buffer, BLOCK_SIZE);
-
     uint16_t op_code = 0;
     memcpy(&op_code, buffer, 2);
     printf("Incoming connection from %s:%d OP_CODE=%d\n",
@@ -143,13 +138,15 @@ int cmd_put(char *buffer, int length, struct sockaddr_in saddr_other,
   printf("WRQ: %s %s\n", wrq.file_name, wrq.mode);
 
   int fd;
-  if (-1 == (fd = openat(root_dirfd, wrq.file_name, O_CREAT | O_EXCL, 0770))) {
+  if (-1 == (fd = openat(root_dirfd, wrq.file_name, O_CREAT | O_EXCL | O_RDWR,
+                         0770))) {
     tftp_err_t err_packet;
     err_packet.op_code = TFTP_ERR;
     err_packet.err = TFTP_ERR_FILE_EXISTS;
     err_packet.msg = malloc(128);
     sprintf(err_packet.msg, "File '%s' already exists\n", wrq.file_name);
     printf("%s", err_packet.msg);
+    return fd;
   }
 
   tftp_ack_t ack_packet;
@@ -165,26 +162,34 @@ int cmd_put(char *buffer, int length, struct sockaddr_in saddr_other,
     uint8_t *buffer = malloc(516);
     read_bytes = recvfrom(sockfd, buffer, 516, 0,
                           (struct sockaddr *)&saddr_other, &addrlen);
+
+    // unpacking data packet
+    memcpy(&data_packet.op_code, buffer, 2);
+    memcpy(&data_packet.block_n, buffer + 2, 2);
+    // memcpy(data_packet.data, buffer + 4, BLOCK_SIZE);
     data_packet.data = buffer + 4;
-    // recvfrom(sockfd, data_packet.data, BLOCK_SIZE, 0,
-    //                       (struct sockaddr *)&saddr_other, &addrlen);
-    printf("WRQ: recieved %d bytes from DATA#%d\n", read_bytes,
-           data_packet.block_n);
 
-    write(fd, data_packet.data, read_bytes);
+    printf("WRQ: recieved %d bytes from DATA#%d\n-------\n%s\n\n", read_bytes,
+           data_packet.block_n, data_packet.data);
 
-    for (int i = 0; i < read_bytes; ++i) {
-      printf("%d ", *(data_packet.data + i));
-      i % 16 == 15 && (printf("\n"));
-    }
-    printf("\n\n");
+    int written;
+    if (-1 == (written = write(fd, data_packet.data, read_bytes - 4))) {
+      printf("error with writting\n");
+    };
+    printf("written to %s %d bytes\n", wrq.file_name, written);
+
+    // for (int i = 0; i < read_bytes - 4; ++i) {
+    //   printf("%d ", *(data_packet.data + i));
+    //   i % 16 == 15 && (printf("\n"));
+    // }
+    // printf("\n\n");
 
     ack_packet.block_n = data_packet.block_n;
 
     sendto(sockfd, &ack_packet, sizeof(ack_packet), 0,
            (struct sockaddr *)&saddr_other, addrlen);
     printf("WRQ: sent ACK#%d\n", ack_packet.block_n);
-  } while (read_bytes == sizeof(tftp_data_t));
+  } while (read_bytes == 516);
 
   close(fd);
 }
