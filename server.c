@@ -24,6 +24,8 @@ int graceful_stop(int signal) {
 
 int cmd_put(char *buffer, int length, struct sockaddr_in saddr_other,
             socklen_t addrlen);
+int cmd_get(char *buffer, int length, struct sockaddr_in saddr_other,
+            socklen_t addrlen);
 int main(int argc, char *argv[]) {
   int port = argc < 2 ? DEFAULT_PORT : atoi(argv[1]);
   printf("converted port: %d\n", port);
@@ -54,9 +56,6 @@ int main(int argc, char *argv[]) {
     graceful_stop(EXIT_FAILURE);
   };
 
-  // server attributes
-  char buffer[2 * BLOCK_SIZE];
-
   if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     perror("socket failed\n");
     exit(EXIT_FAILURE);
@@ -71,15 +70,11 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  // if (0 > listen(sockfd, 3)) {
-  //   perror("listen error\n");
-  //   exit(EXIT_FAILURE);
-  // }
-
   printf("server started on port %d\n", port);
 
   int recv_len;
 
+  char *recieved = malloc(BLOCK_SIZE);
   while (1) {
 
     printf("Waiting for packets...\n");
@@ -89,13 +84,13 @@ int main(int argc, char *argv[]) {
     // }
 
     if (-1 ==
-        (recv_len = recvfrom(sockfd, buffer, 2 * BLOCK_SIZE, 0,
+        (recv_len = recvfrom(sockfd, recieved, 2 * BLOCK_SIZE, 0,
                              (struct sockaddr *)&saddr_other, &addrlen))) {
       graceful_stop(0);
     }
 
     uint16_t op_code = 0;
-    memcpy(&op_code, buffer, 2);
+    memcpy(&op_code, recieved, 2);
     printf("Incoming connection from %s:%d OP_CODE=%d\n",
            inet_ntoa(saddr_other.sin_addr), ntohs(saddr_other.sin_port),
            op_code);
@@ -103,22 +98,17 @@ int main(int argc, char *argv[]) {
     int err_code = TFTP_SUCCESS;
     if (op_code == TFTP_WRQ) {
       if (TFTP_SUCCESS !=
-          (err_code = cmd_put(buffer, recv_len, saddr_other, addrlen))) {
-        tftp_err_t err_packet;
-        err_packet.op_code = TFTP_ERR;
-        err_packet.err = err_code;
-        err_packet.msg = "";
-
-        if (-1 == (sendto(sockfd, &err_packet, BLOCK_SIZE, 0,
-                          (struct sockaddr *)&saddr_other, addrlen))) {
-          graceful_stop(EXIT_FAILURE);
-        }
+          (err_code = cmd_put(recieved, recv_len, saddr_other, addrlen))) {
+        // graceful_stop(err_code);
+      }
+    } else if (op_code == TFTP_RRQ) {
+      if (TFTP_SUCCESS !=
+          (err_code = cmd_get(recieved, recv_len, saddr_other, addrlen))) {
+        // graceful_stop(err_code);
       }
     }
-
-    // free(buffer);
-    // close(current_sockfd);
   }
+  free(recieved);
   graceful_stop(EXIT_SUCCESS);
 }
 
@@ -200,6 +190,88 @@ int cmd_put(char *buffer, int length, struct sockaddr_in saddr_other,
            (struct sockaddr *)&saddr_other, addrlen);
     printf("WRQ: sent ACK#%d\n", ack_packet.block_n);
   } while (read_bytes == 516);
+
+  close(fd);
+}
+
+int cmd_get(char *buffer, int length, struct sockaddr_in saddr_other,
+            socklen_t addrlen) {
+  tftp_wrrq_t rrq;
+  char *p = buffer;
+
+  memcpy(&rrq.op_code, p, 2);
+  p += 2;
+
+  rrq.file_name = p;
+  p += strlen(p) + 1;
+
+  rrq.mode = p;
+
+  printf("RRQ: %s %s\n", rrq.file_name, rrq.mode);
+
+  int fd;
+  if (-1 == (fd = openat(root_dirfd, rrq.file_name, O_RDONLY, 0770))) {
+    tftp_err_t err_packet;
+    err_packet.op_code = TFTP_ERR;
+    err_packet.err = TFTP_ERR_FILE_EXISTS;
+    err_packet.msg = malloc(128);
+    int len =
+        sprintf(err_packet.msg, "File '%s' doesn't exists\n", rrq.file_name);
+    printf("put: sent [%d] %d %s", err_packet.op_code, err_packet.err,
+           err_packet.msg);
+
+    uint8_t *err_buf = malloc(BLOCK_SIZE);
+    // memset(err_buf, 0, 4 + len + 1);
+    //
+    // printf("erro r")
+    memcpy(err_buf, &err_packet.op_code, 2);
+    memcpy(err_buf + 2, &err_packet.err, 2);
+    memcpy(err_buf + 4, err_packet.msg, len + 1);
+
+    sendto(sockfd, err_buf, BLOCK_SIZE, 0, (struct sockaddr *)&saddr_other,
+           addrlen);
+
+    free(err_buf);
+    return err_packet.err;
+  }
+
+  off_t fsize = lseek(fd, 0, SEEK_END);
+
+  tftp_data_t data_packet;
+  data_packet.op_code = TFTP_DATA;
+  data_packet.block_n = 1;
+
+  tftp_ack_t ack_packet;
+  ack_packet.op_code = TFTP_ACK;
+  ack_packet.block_n = 0;
+
+  int recv_len;
+  for (int sent = 0; sent < fsize; sent += BLOCK_SIZE) {
+
+    // int offset = ack_packet.block_n * BLOCK_SIZE;
+    printf("reading from %ld bytes\n", lseek(fd, sent, SEEK_SET));
+
+    data_packet.data = malloc(BLOCK_SIZE);
+    int to_sent = read(fd, data_packet.data, BLOCK_SIZE);
+
+    data_packet.op_code = TFTP_DATA;
+    uint8_t *packet = malloc(BLOCK_SIZE + 4);
+    memcpy(packet, &data_packet, 4);
+    // memcpy(packet + 2, &data_packet.block_n, 2);
+    memcpy(packet + 4, data_packet.data, to_sent);
+
+    sendto(sockfd, packet, 2 + 2 + to_sent, 0, (struct sockaddr *)&saddr_other,
+           addrlen);
+    printf("get: sent %d bytes DATA#%d\n", to_sent, data_packet.block_n);
+
+    memset(packet, 0, BLOCK_SIZE + 4);
+    recv_len = recvfrom(sockfd, packet, BLOCK_SIZE, 0,
+                        (struct sockaddr *)&saddr_other, &addrlen);
+
+    memcpy(&ack_packet, packet, sizeof(ack_packet));
+    printf("get: recieved ACK#%d\n", ack_packet.block_n);
+    data_packet.block_n = ack_packet.block_n + 1;
+  }
 
   close(fd);
 }

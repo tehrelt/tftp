@@ -20,12 +20,8 @@ int graceful_stop(int signal) {
   exit(EXIT_SUCCESS);
 }
 
-int mkdir(int argc, char **argv);
 int put(int argc, char **argv);
 int get(int argc, char **argv);
-int pwd(int argc, char **argv);
-int cwd(int argc, char **argv);
-int delete(int argc, char **argv);
 
 static int set_args(char *args, char **argv) {
   int count = 0;
@@ -110,20 +106,16 @@ int main(int argc, char *argv[]) {
 
     l_argv = parsed_args(input, &argc);
 
-    if (strcmp(l_argv[0], "mkdir") == 0) {
-
-    } else if (strcmp(l_argv[0], "get") == 0) {
-
+    if (strcmp(l_argv[0], "get") == 0) {
+      if (EXIT_SUCCESS != get(l_argc, l_argv)) {
+        printf("get error\n");
+      }
     } else if (strcmp(l_argv[0], "put") == 0) {
       if (EXIT_SUCCESS != put(l_argc, l_argv)) {
         printf("put error\n");
       }
-    } else if (strcmp(l_argv[0], "cwd") == 0) {
-
-    } else if (strcmp(l_argv[0], "pwd") == 0) {
-
-    } else if (strcmp(l_argv[0], "delete") == 0) {
     }
+    free_parsed_args(l_argv);
   }
   graceful_stop(EXIT_FAILURE);
 }
@@ -197,7 +189,7 @@ int put(int argc, char **argv) {
       err_packet.msg = recieved + 4;
       printf("Error packet recieved: [%d] %s\n", err_packet.err,
              err_packet.msg);
-      graceful_stop(err_packet.err);
+      return err_packet.err;
     }
 
     // unpacking acknowlegment packet
@@ -209,17 +201,6 @@ int put(int argc, char **argv) {
            lseek(fd, (ack_packet.block_n) * BLOCK_SIZE, SEEK_SET));
 
     uint8_t *buffer = malloc(BLOCK_SIZE);
-
-    // op_code = 0;
-    // memcpy(&op_code, buffer, 2);
-
-    // if (op_code != TFTP_DATA) {
-    //   tftp_err_t err;
-    //   memcpy(&err, buffer, sizeof(tftp_err_t));
-    //   err.msg = buffer + 4;
-    //   printf("Recieved error packet: [%d] %s", err.err, err.msg);
-    //   return err.err;
-    // }
 
     int to_write = read(fd, buffer, BLOCK_SIZE);
     if (to_write == -1) {
@@ -252,4 +233,84 @@ int put(int argc, char **argv) {
   printf("put: Recieved ACK#%d\n", ack_packet.block_n);
   return EXIT_SUCCESS;
 }
-int get(int argc, char **argv) { return EXIT_SUCCESS; }
+int get(int argc, char **argv) {
+  char *file_name = argv[1];
+
+  tftp_wrrq_t rrq;
+  rrq.op_code = TFTP_RRQ;
+  rrq.file_name = file_name;
+  rrq.mode = "octet";
+
+  uint8_t *recieved = malloc(BLOCK_SIZE + 4);
+  memset(recieved, 0, BLOCK_SIZE + 4);
+
+  uint8_t *b = recieved;
+  memcpy(b, &rrq.op_code, 2);
+  b += 2;
+
+  int fnl = strlen(rrq.file_name);
+  memcpy(b, rrq.file_name, fnl);
+  b += fnl + 1;
+
+  int ml = strlen(rrq.mode);
+  memcpy(b, rrq.mode, ml);
+  b += ml + 1;
+
+  sendto(sockfd, recieved, 2 + fnl + ml + 2, 0, (struct sockaddr *)&saddr_other,
+         addrlen);
+  printf("RRQ: %d %s %s\n", rrq.op_code, rrq.file_name, rrq.mode);
+
+  int fd = creat(file_name, 0770);
+  if (fd == -1) {
+    printf("create file failed\n");
+    return fd;
+  }
+
+  int read_bytes = 0;
+  do {
+    // read_bytes = recvfrom(sockfd, recieved, BLOCK_SIZE + 4, 0,
+    // (struct sockaddr *)&saddr_other, &addrlen);
+
+    memset(recieved, 0, BLOCK_SIZE + 4);
+    read_bytes = recvfrom(sockfd, recieved, BLOCK_SIZE + 4, 0,
+                          (struct sockaddr *)&saddr_other, &addrlen);
+
+    for (int i = 0; i < read_bytes; ++i) {
+      printf("%d\t", *(recieved + i));
+      i % 16 == 15 && printf("\n");
+    }
+
+    int op_code;
+    memcpy(&op_code, recieved, 2);
+
+    printf("get: recieved packet [%d]\n", op_code);
+
+    if (op_code == TFTP_ERR) {
+      tftp_err_t err_packet;
+      memcpy(&err_packet, recieved, sizeof(tftp_err_t));
+      err_packet.msg = recieved + 4;
+      printf("Error packet recieved: [%d] %s\n", err_packet.err,
+             err_packet.msg);
+      return err_packet.err;
+    }
+
+    tftp_data_t data_packet;
+    memcpy(&data_packet, recieved, 4);
+    data_packet.data = recieved + 4;
+    printf("get: recieved %d bytes from DATA#%d\n", read_bytes,
+           data_packet.block_n);
+
+    write(fd, data_packet.data, read_bytes);
+
+    tftp_ack_t ack_packet;
+    ack_packet.op_code = TFTP_ACK;
+    ack_packet.block_n = data_packet.block_n;
+
+    sendto(sockfd, &ack_packet, sizeof(ack_packet), 0,
+           (struct sockaddr *)&saddr_other, addrlen);
+    printf("get: sent ACK#%d\n", ack_packet.block_n);
+  } while (read_bytes == BLOCK_SIZE + 4);
+
+  close(fd);
+  return EXIT_SUCCESS;
+}

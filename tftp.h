@@ -1,7 +1,6 @@
 #include <stdint.h>
 
 #define DEFAULT_PORT 69
-// #define BUFFER_SIZE (32 << 20)
 #define BLOCK_SIZE 512
 
 #define TFTP_RRQ 1
