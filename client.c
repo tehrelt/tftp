@@ -219,9 +219,7 @@ int put(int argc, char **argv) {
 
     sendto(sockfd, (char *)packet, 4 + to_write, 0,
            (struct sockaddr *)&saddr_other, addrlen);
-    printf("put: sent %d bytes "
-           "DATA#%d\n--------\n%s\n---------\n\n",
-           4 + to_write, data_packet.block_n, data_packet.data);
+    printf("put: sent %d bytes DATA#%d", 4 + to_write, data_packet.block_n);
 
     free(buffer);
   }
@@ -233,6 +231,7 @@ int put(int argc, char **argv) {
   printf("put: Recieved ACK#%d\n", ack_packet.block_n);
   return EXIT_SUCCESS;
 }
+
 int get(int argc, char **argv) {
   char *file_name = argv[1];
 
@@ -271,8 +270,8 @@ int get(int argc, char **argv) {
                           (struct sockaddr *)&saddr_other, &addrlen);
 
     for (int i = 0; i < read_bytes; ++i) {
-      printf("%d\t", *(recieved + i));
-      i % 16 == 15 && printf("\n");
+      // printf("%d\t", *(recieved + i));
+      // i % 16 == 15 && printf("\n");
     }
 
     int op_code;
@@ -283,7 +282,7 @@ int get(int argc, char **argv) {
     if (op_code == TFTP_ERR) {
       tftp_err_t err_packet;
       memcpy(&err_packet, recieved, sizeof(tftp_err_t));
-      err_packet.msg = recieved + 4;
+      err_packet.msg = (char *)recieved + 4;
       printf("Error packet recieved: [%d] %s\n", err_packet.err,
              err_packet.msg);
       return err_packet.err;
@@ -295,7 +294,7 @@ int get(int argc, char **argv) {
     printf("get: recieved %d bytes from DATA#%d\n", read_bytes,
            data_packet.block_n);
 
-    if (data_packet.block_n == 0) {
+    if (data_packet.block_n == 1) {
       fd = creat(file_name, 0770);
       if (fd == -1) {
         printf("create file failed\n");

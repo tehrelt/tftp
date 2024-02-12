@@ -169,8 +169,8 @@ int cmd_put(char *buffer, int length, struct sockaddr_in saddr_other,
     // memcpy(data_packet.data, buffer + 4, BLOCK_SIZE);
     data_packet.data = buffer + 4;
 
-    printf("WRQ: recieved %d bytes from DATA#%d\n-------\n%s\n\n", read_bytes,
-           data_packet.block_n, data_packet.data);
+    printf("WRQ: recieved %d bytes from DATA#%d\n", read_bytes,
+           data_packet.block_n);
 
     int written;
     if (-1 == (written = write(fd, data_packet.data, read_bytes - 4))) {
